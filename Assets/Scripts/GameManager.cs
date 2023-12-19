@@ -7,14 +7,15 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
+    public List<Vector2> stepList = new List<Vector2>();
     public GameObject blackPiece;
     public GameObject whitePiece;
     public GameObject border;
     public float xDis;
     public float yDis;
     public bool isMyTurn;
-    public bool isBlack;
-
+    public bool playerIsBlack;
+    public int maxDepth;//递归的最大深度
     public static int[,] chessBoard = new int[15, 15];
     public enum ChessType
     {
@@ -53,6 +54,20 @@ public class GameManager : MonoBehaviour
         {
             GeneratePiece();
         }
+        if (Input.GetKeyDown(KeyCode.Z))
+        {
+            Revoke();
+        }
+    }
+
+    void Revoke()
+    {
+        if(stepList.Count > 0)
+        {
+            GameObject t  = GameObject.Find("chess" + (stepList.Count-1).ToString());
+            Destroy(t);
+            stepList.RemoveAt(stepList.Count - 1);
+        }
     }
 
     //void Test()
@@ -82,15 +97,17 @@ public class GameManager : MonoBehaviour
         Vector3 pos = ClosestPoint(xCo,yCo);
         if (pos.z < 0) return;
         if (chessBoard[xCo+7, yCo+7] > 0) return;
-        LayPiece(xCo + 7, yCo + 7);
+        LayPiece(xCo + 7, yCo + 7,playerIsBlack);
     }
 
-    void LayPiece(int x,int y)
+    void LayPiece(int x,int y,bool isBlack)
     {
         chessBoard[x, y] = isBlack ? 1 : 2;
         Vector3 pos = ClosestPoint(x - 7, y - 7);
         GameObject piece = Instantiate(isBlack ? blackPiece : whitePiece);
         piece.transform.position = pos;
+        piece.name = "chess" + stepList.Count;
+        stepList.Add(new Vector2(x, y));
         if (CheckWin(x, y))
         {
             //TODO 赢了之后的事情
@@ -289,9 +306,55 @@ public class GameManager : MonoBehaviour
         TypeCount(rightSlash, blackCnt, whiteCnt);
     }
 
-    int AlphaBeta()
+    bool NoEmptyCell(int[,] board)
     {
-
+        for (int i = 0; i < 15; i++)
+            for (int j = 0; j < 15; j++)
+                if (board[i,j] == 0) return false;
+        return true;
     }
 
+    //int Evaluate(int[,] board,int x,int y,)
+
+    int AlphaBeta(int[,] board,int depth,int alpha,int beta,bool maximizingPlayer)
+    {
+        if(depth ==0 || NoEmptyCell(board))
+        {
+            //TODO 计算价值
+            //return Evaluate(int[,] board){
+
+            //}
+        }
+        if (maximizingPlayer)
+        {
+            int v = 0 - int.MaxValue;
+            for(int i = 0; i < 15; i++)
+                for(int j = 0; j < 15; j++)
+                    if (board[i, j] == 0)
+                    {
+                        board[i, j] = playerIsBlack ? 2 : 1;
+                        stepList.Add(new Vector2(i, j));
+                        v = Mathf.Max(v, AlphaBeta(board, depth - 1, alpha, beta, false));
+                        board[i, j] = 0;
+                        alpha = Mathf.Max(alpha, v);
+                        if (beta <= alpha) break;
+                    }
+            return v;
+        }
+        else
+        {
+            int v = int.MaxValue;
+            for (int i = 0; i < 15; i++)
+                for (int j = 0; j < 15; j++)
+                    if (board[i, j] == 0)
+                    {
+                        board[i, j] = playerIsBlack ? 1 : 2;
+                        v = Mathf.Min(v, AlphaBeta(board, depth - 1, alpha, beta, true));
+                        board[i, j] = 0;
+                        beta = Mathf.Min(beta, v);
+                        if (beta <= alpha) break;
+                    }
+            return v;
+        }
+    }
 }
