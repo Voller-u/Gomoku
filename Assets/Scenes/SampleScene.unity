@@ -158,6 +158,8 @@ MonoBehaviour:
   xDis: 0.685
   yDis: 0.65
   isMyTurn: 1
+  playerIsBlack: 1
+  maxDepth: 1
 --- !u!4 &305370592
 Transform:
   m_ObjectHideFlags: 0

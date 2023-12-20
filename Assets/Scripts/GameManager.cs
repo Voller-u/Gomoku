@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -7,7 +8,12 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
-    public List<Vector2> stepList = new List<Vector2>();
+    public struct Point
+    {
+        public int x, y;
+        public Point(int x,int y) { this.x = x; this.y = y; }
+    }
+    public List<Point> stepList = new List<Point>();
     public GameObject blackPiece;
     public GameObject whitePiece;
     public GameObject border;
@@ -29,18 +35,20 @@ public class GameManager : MonoBehaviour
     }
     public enum DifficultyLevel { Easy,Middle,Hard,Expert};
 
-    public static List<List<string>> blackChessTypes = new List<List<string>>();
-    public static List<List<string>> whiteChessTypes = new List<List<string>>();
+    public static List<List<string>> blackChessTypes = new();
+    public static List<List<string>> whiteChessTypes = new();
 
     //白棋价值表
-    public Dictionary<string, int> whiteEvalTable = new Dictionary<string, int>();
+    public Dictionary<string, int> whiteEvalTable = new();
     //黑棋价值表
-    public Dictionary<string, int> blackEvalTable = new Dictionary<string, int>();
+    public Dictionary<string, int> blackEvalTable = new();
 
     // Start is called before the first frame update
     void Start()
     {
-        
+        InitChessTypesList();
+        //Debug.Log(blackChessTypes.Count);
+        InitEvalTable(DifficultyLevel.Hard);
     }
 
     // Update is called once per frame
@@ -58,6 +66,19 @@ public class GameManager : MonoBehaviour
         {
             Revoke();
         }
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            AI();
+        }
+    }
+
+    void InitChessTypesList()
+    {
+        for(int i = 0; i < 7; i++)
+        {
+            blackChessTypes.Add(new List<string>());
+            whiteChessTypes.Add(new List<string>());
+        }
     }
 
     void Revoke()
@@ -66,6 +87,7 @@ public class GameManager : MonoBehaviour
         {
             GameObject t  = GameObject.Find("chess" + (stepList.Count-1).ToString());
             Destroy(t);
+            chessBoard[stepList[^1].x, stepList[^1].y] = 0;
             stepList.RemoveAt(stepList.Count - 1);
         }
     }
@@ -107,7 +129,7 @@ public class GameManager : MonoBehaviour
         GameObject piece = Instantiate(isBlack ? blackPiece : whitePiece);
         piece.transform.position = pos;
         piece.name = "chess" + stepList.Count;
-        stepList.Add(new Vector2(x, y));
+        stepList.Add(new Point(x, y));
         if (CheckWin(x, y))
         {
             //TODO 赢了之后的事情
@@ -182,6 +204,29 @@ public class GameManager : MonoBehaviour
         return false;
     }
 
+    static bool IsPalindrome(string str)
+    {
+        int min = 0;
+        int max = str.Length - 1;
+        while (true)
+        {
+            if (min > max)
+            {
+                return true;
+            }
+            char a = str[min];
+            char b = str[max];
+            if (a != b) return false;
+            min++;
+            max--;
+        }
+    }
+    static string Reverse(string str)
+    {
+        char[] arr = str.ToCharArray();
+        Array.Reverse(arr);
+        return new string(arr);
+    }
     void InitEvalTable(DifficultyLevel level)
     {
         //根据不同难度初始化价值表
@@ -197,18 +242,45 @@ public class GameManager : MonoBehaviour
                 }
             case DifficultyLevel.Hard:
                 {
+                    Debug.Log("困难难度");
                     blackChessTypes[(int)ChessType.STwo].Add("21100");//冲二
-                    
-                    blackChessTypes[(int)ChessType.SThree].Add("21110");//冲三
-                    blackChessTypes[(int)ChessType.SFour].Add("122220");//冲四
-                    blackChessTypes[(int)ChessType.Two].Add("01100");//活二
-                    blackChessTypes[(int)ChessType.Three].Add("01110");//活三
-                    blackChessTypes[(int)ChessType.Four].Add("011110");//活四
-                    blackChessTypes[(int)ChessType.Five].Add("11111");//五成
+
+                    //冲三
+                    blackChessTypes[(int)ChessType.SThree].Add("21110");
+
+
+                    //冲四
+                    blackChessTypes[(int)ChessType.SFour].Add("211110");
+                    blackChessTypes[(int)ChessType.SFour].Add("0111010");
+                    blackChessTypes[(int)ChessType.SFour].Add("0110110");
+                    blackChessTypes[(int)ChessType.SFour].Add("2111010");
+                    blackChessTypes[(int)ChessType.SFour].Add("2101112");
+                    blackChessTypes[(int)ChessType.SFour].Add("2110112");
+
+                    //活二
+                    blackChessTypes[(int)ChessType.Two].Add("01100");
+
+                    //活三
+                    blackChessTypes[(int)ChessType.Three].Add("0011100");
+
+                    //活四
+                    blackChessTypes[(int)ChessType.Four].Add("011110");
+
+                    //五成
+                    blackChessTypes[(int)ChessType.Five].Add("11111");
+                    for (int i = 0; i <= 6; i++)
+                    {
+                        int num = blackChessTypes[i].Count;
+                        for (int j = 0; j < num; j++)
+                            if (!IsPalindrome(blackChessTypes[i][j]))
+                                blackChessTypes[i].Add(Reverse(blackChessTypes[i][j]));
+                    }
+
+
                     for (int i = 0; i <= 6; i++)
                         for (int j = 0; j < blackChessTypes[i].Count; j++)
                             whiteChessTypes[i].Add(blackChessTypes[i][j].
-                                Replace('2','-').Replace('1','2').Replace('2','1'));
+                                Replace('2','-').Replace('1','2').Replace('-','1'));
                     break;
                 }
             case DifficultyLevel.Expert:
@@ -240,6 +312,13 @@ public class GameManager : MonoBehaviour
         AnalyseLeft(board, x, y, whiteCnt, blackCnt, isBlack);
         AnalyseRight(board, x, y, whiteCnt, blackCnt, isBlack);
     }
+    void Analyse(int[,] board, int[] whiteCnt, int[] blackCnt, bool isBlack)
+    {
+        AnalyseHorizontal(board, whiteCnt, blackCnt, isBlack);
+        AnalyseVertical(board, whiteCnt, blackCnt, isBlack);
+        AnalyseLeft(board,  whiteCnt, blackCnt, isBlack);
+        AnalyseRight(board,  whiteCnt, blackCnt, isBlack);
+    }
 
     void TypeCount(string s,int[] blackCnt, int[] whiteCnt)
     {
@@ -261,49 +340,119 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < 14; i++) line += board[i, y].ToString();
         TypeCount(line, blackCnt, whiteCnt);
     }
+    void AnalyseHorizontal(int[,] board, int[] whiteCnt, int[] blackCnt, bool isBlack)
+    {
+        for(int i = 0; i < 15; i++)
+        {
+            string line = "";
+            for (int j = 0; j < 15; j++) line += j.ToString();
+            TypeCount(line, blackCnt, whiteCnt);
+        }
+        
+    }
     void AnalyseVertical(int[,] board, int x, int y, int[] whiteCnt, int[] blackCnt, bool isBlack)
     {
         string colume = "";
         for (int i = 0; i < 14; i++) colume += board[x, i].ToString();
         TypeCount(colume, blackCnt, whiteCnt);
     }
+    void AnalyseVertical(int[,] board,int[] whiteCnt, int[] blackCnt, bool isBlack)
+    {
+        for(int j = 0; j < 15; j++)
+        {
+            string colume = "";
+            for (int i = 0; i < 15; i++) colume += board[j, i].ToString();
+            TypeCount(colume, blackCnt, whiteCnt);
+        }
+    }
     void AnalyseLeft(int[,] board, int x, int y, int[] whiteCnt, int[] blackCnt, bool isBlack)
     {
         string leftSlash = "";
+        int b = x + y;//纵截距
         if (x + y <= 14)
         {//在下半段
-            for(int i = 0; y >= 0; y--, i++)
+            for(int i = 0; i <= b; i++)
             {
-                leftSlash += board[i, y].ToString();
+                leftSlash += board[i, b - i].ToString();
             }
         }
         else
         {//在上半段
-            for(int i = 14; y <= 14; y++, i--)
+            for(int i = 0; i <= b - 28; i++)
             {
-                leftSlash += board[i, y].ToString();
+                leftSlash += board[b - 14 - i, 14 + i].ToString();
             }
         }
         TypeCount(leftSlash, blackCnt, whiteCnt);
     }
+    void AnalyseLeft(int[,] board, int[] whiteCnt, int[] blackCnt, bool isBlack)
+    {
+        
+        for(int b = 0; b <= 28; b++)
+        {
+            string leftSlash = "";
+            if (b <= 14)
+            {//在下半段
+                for (int i = 0; i <= b; i++)
+                {
+                    leftSlash += board[i, b - i].ToString();
+                }
+            }
+            else
+            {//在上半段
+                for (int i = 0; i <= b - 28; i++)
+                {
+                    leftSlash += board[b - 14 - i, 14 + i].ToString();
+                }
+            }
+            TypeCount(leftSlash, blackCnt, whiteCnt);
+        }
+    }
     void AnalyseRight(int[,] board, int x, int y, int[] whiteCnt, int[] blackCnt, bool isBlack)
     {
         string rightSlash = "";
+        int b = y - x;//纵截距
         if(y-x <= 0)
         {//在下半段
-            for(int i = 0; x <= 1; x++, i++)
+            for(int i = 0; i <= 14 + b; i++)
             {
-                rightSlash += board[x, i].ToString();
+                rightSlash += board[-1 * b + i, i].ToString();
             }
         }
         else
         {
-            for(int i = 14; x >= 0; x--, i--)
+            for(int i = 0; i <= 14 - b; i++)
             {
-                rightSlash += board[x, i].ToString();
+                rightSlash += board[i, b + i].ToString();
             }
         }
         TypeCount(rightSlash, blackCnt, whiteCnt);
+    }
+
+    void AnalyseRight(int[,] board, int[] whiteCnt, int[] blackCnt, bool isBlack)
+    {
+        
+        //int b = y - x;//纵截距
+        for(int b = -14; b <= 14; b++)
+        {
+            string rightSlash = "";
+            if (b <= 0)
+            {//在下半段
+                for (int i = 0; i <= 14 + b; i++)
+                {
+                    rightSlash += board[-1 * b + i, i].ToString();
+                }
+            }
+            else
+            {
+                for (int i = 0; i <= 14 - b; i++)
+                {
+                    rightSlash += board[i, b + i].ToString();
+                }
+            }
+            TypeCount(rightSlash, blackCnt, whiteCnt);
+        }
+        
     }
 
     bool NoEmptyCell(int[,] board)
@@ -314,47 +463,200 @@ public class GameManager : MonoBehaviour
         return true;
     }
 
-    //int Evaluate(int[,] board,int x,int y,)
+    int Evaluate(int[,] board,bool isBlack)
+    {
+        int[] whiteCnt = new int[7];
+        int[] blackCnt = new int[7];
+        //计算白棋和黑棋各种棋形的数量
+        Analyse(board, stepList[^1].x, stepList[^1].y, whiteCnt, blackCnt, isBlack);
+        //Debug.Log("Point:" + stepList[^1].x.ToString() + "," + stepList[^1].y.ToString()
+        //    + "BlackFour cnt:" + blackCnt[(int)ChessType.Four] + "BlackThree cnt:" +
+        //    blackCnt[(int)ChessType.Three]);
+        //Debug.Log("Point:" + stepList[^1].x.ToString() + "," + stepList[^1].y.ToString()
+        //    + "WhiteFour cnt:" + whiteCnt[(int)ChessType.Four] + "WhiteThree cnt:" +
+        //    whiteCnt[(int)ChessType.Three]);
+        //计算分数
+        if (isBlack)
+        {
+            if (ChessTypeExists(blackCnt,ChessType.Five)) 
+                return 9999;
+            if (ChessTypeExists(whiteCnt,ChessType.Five))
+                return -9999;
+            if (ChessTypeExists(blackCnt,ChessType.Four) || blackCnt[(int)ChessType.SFour] > 2)
+                return 9990;
+            if (ChessTypeExists(blackCnt,ChessType.SFour))
+                return 9980;
+            if (ChessTypeExists(whiteCnt,ChessType.Four) || whiteCnt[(int)ChessType.SFour] >2)
+                return -9970;
+            if (ChessTypeExists(whiteCnt,ChessType.SFour) && ChessTypeExists(whiteCnt,ChessType.Three))
+                return -9960;
+            if (ChessTypeExists(blackCnt, ChessType.Three) && ChessTypeExists(whiteCnt, ChessType.SFour))
+                return 9950;
+            if (whiteCnt[(int)ChessType.Three] >1 && !ChessTypeExists(blackCnt,ChessType.SFour)
+                && !ChessTypeExists(blackCnt,ChessType.Three) && !ChessTypeExists(blackCnt,ChessType.SThree))
+                return -9940;
+            int blackScore = CalFewScores(blackCnt);
+            int whiteScore = CalFewScores(whiteCnt);
+            //Debug.Log("whiteScore:" + whiteScore + " blackScore:" + blackScore);
+            return blackScore - whiteScore;
+        }
+        else
+        {
+            if (ChessTypeExists(whiteCnt, ChessType.Five))
+                return 9999;
+            if (ChessTypeExists(blackCnt, ChessType.Five))
+                return -9999;
+            if (ChessTypeExists(whiteCnt, ChessType.Four) || whiteCnt[(int)ChessType.SFour] > 2)
+                return 9990;
+            if (ChessTypeExists(whiteCnt, ChessType.SFour))
+                return 9980;
+            if (ChessTypeExists(blackCnt, ChessType.Four) || blackCnt[(int)ChessType.SFour] > 2)
+                return -9970;
+            if (ChessTypeExists(blackCnt, ChessType.SFour) && ChessTypeExists(blackCnt, ChessType.Three))
+                return -9960;
+            if (ChessTypeExists(whiteCnt, ChessType.Three) && ChessTypeExists(blackCnt, ChessType.SFour))
+                return 9950;
+            if (blackCnt[(int)ChessType.Three] > 1 && !ChessTypeExists(whiteCnt, ChessType.SFour)
+                && !ChessTypeExists(whiteCnt, ChessType.Three) && !ChessTypeExists(whiteCnt, ChessType.SThree))
+                return -9940;
+            int blackScore = CalFewScores(blackCnt) + CalWeight(1);
+            int whiteScore = CalFewScores(whiteCnt) + CalWeight(2);
+            //for (int i = 0; i < 7; i++) Debug.Log(whiteCnt[i]);
+            //Debug.Log("whiteScore:" + whiteScore + " blackScore:" + blackScore);
+            return whiteScore - blackScore;
+        }
+    }
+
+    bool ChessTypeExists(int[] colorCnt, ChessType chessType)
+    {
+        return colorCnt[(int)chessType] > 0;
+    }
+
+    int CalWeight(int color)
+    {
+        int weightSum = 0;
+        for (int i = 0; i < 15; i++)
+            for (int j = 0; j < 15; j++)
+                if (chessBoard[i, j] == color)
+                    weightSum += Mathf.Min(Mathf.Min(i, 14 - i), Mathf.Min(j, 14 - j));
+        return weightSum;
+    }
+
+    int CalFewScores(int[] colorCnt)
+    {
+        int scoreSum = 0;
+        if (colorCnt[(int)ChessType.Three] > 1) scoreSum += 2000;
+        if (colorCnt[(int)ChessType.Three] == 1) scoreSum += 200;
+        scoreSum += colorCnt[(int)ChessType.SFour] * 10;
+        scoreSum += colorCnt[(int)ChessType.Two] * 4;
+        scoreSum += colorCnt[(int)ChessType.STwo] * 1;
+        return scoreSum;
+    }
+
+    void PrintBoard()
+    {
+        string str = "";
+        for(int i = 0; i < 15; i++)
+        {
+            for(int j = 0; j < 15; j++)
+            {
+                str += chessBoard[i, j].ToString();
+            }
+            str += '\n';
+        }
+        Debug.Log(str);
+    }
 
     int AlphaBeta(int[,] board,int depth,int alpha,int beta,bool maximizingPlayer)
     {
-        if(depth ==0 || NoEmptyCell(board))
+        if (depth == 0 || NoEmptyCell(board) || CheckWin(stepList[^1].x, stepList[^1].y))
         {
-            //TODO 计算价值
-            //return Evaluate(int[,] board){
-
-            //}
+            //返回价值
+            //return Evaluate(board, playerIsBlack ? (maximizingPlayer ? false : true) :
+            //    (maximizingPlayer ? true : false));
+            int v = Evaluate(board, playerIsBlack ? false : true);
+            Debug.Log("Leap v = " + v);
+            if(v==0) PrintBoard();
+            return v;
         }
         if (maximizingPlayer)
         {
             int v = 0 - int.MaxValue;
-            for(int i = 0; i < 15; i++)
-                for(int j = 0; j < 15; j++)
+            bool loopFlag = true;
+            //搜刮子节点过程
+            for (int i = 0; i < 15 && loopFlag; i++)
+            {
+                for (int j = 0; j < 15; j++)
                     if (board[i, j] == 0)
                     {
-                        board[i, j] = playerIsBlack ? 2 : 1;
-                        stepList.Add(new Vector2(i, j));
+                        board[i, j] = playerIsBlack ? 1 : 2;
+                        stepList.Add(new Point(i, j));
+                        //Debug.Log("i = " + i + " j = " + j + " " + stepList);
                         v = Mathf.Max(v, AlphaBeta(board, depth - 1, alpha, beta, false));
                         board[i, j] = 0;
+                        stepList.RemoveAt(stepList.Count - 1);
                         alpha = Mathf.Max(alpha, v);
-                        if (beta <= alpha) break;
+                        if (beta <= alpha)
+                        {
+                            loopFlag = false;
+                            break;
+                        }
                     }
+            }
             return v;
         }
         else
         {
             int v = int.MaxValue;
-            for (int i = 0; i < 15; i++)
+            bool loopFlag = true;
+            for (int i = 0; i < 15 && loopFlag; i++)
                 for (int j = 0; j < 15; j++)
                     if (board[i, j] == 0)
                     {
-                        board[i, j] = playerIsBlack ? 1 : 2;
+                        board[i, j] = playerIsBlack ? 2 : 1;
+                        stepList.Add(new Point(i, j));
                         v = Mathf.Min(v, AlphaBeta(board, depth - 1, alpha, beta, true));
                         board[i, j] = 0;
+                        stepList.RemoveAt(stepList.Count - 1);
                         beta = Mathf.Min(beta, v);
-                        if (beta <= alpha) break;
+                        if (beta <= alpha)
+                        {
+                            loopFlag = false;
+                            break;
+                        }
                     }
             return v;
         }
+    }
+
+    void AI()
+    {
+        int val = 0 - int.MaxValue;
+        Point nextStep = new Point(0, 0);
+        for (int i = 0; i < 15; i++)
+        {
+            for (int j = 0; j < 15; j++)
+            {
+                if (chessBoard[i, j] == 0)
+                {
+                    chessBoard[i, j] = playerIsBlack ? 2 : 1;
+                    stepList.Add(new Point(i, j));
+                    int v = AlphaBeta(chessBoard, maxDepth, 0 - int.MaxValue, int.MaxValue, true);
+                    Debug.Log("v = " + v);
+                    if (v > val)
+                    {
+                        val = v;
+                        nextStep.x = i;
+                        nextStep.y = j;
+                    }
+                    chessBoard[i, j] = 0;
+                    stepList.RemoveAt(stepList.Count - 1);
+                }
+            }
+        }
+        Debug.Log("MAX Value:" + val);
+        //LayPiece(nextStep.x, nextStep.y, !playerIsBlack);
+        //Debug.Log("Max Score:" + AlphaBeta(chessBoard, maxDepth, 0 - int.MaxValue, int.MaxValue, true));
+
     }
 }
