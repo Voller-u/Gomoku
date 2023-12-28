@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
@@ -23,6 +24,15 @@ public class GameManager : MonoBehaviour
     public bool playerIsBlack;
     public int maxDepth;//递归的最大深度
     public static int[,] chessBoard = new int[15, 15];
+    public bool isThinking;
+    public Point nextStep = new();
+    public GameObject TutorialPanel;
+    public GameObject winPanel;
+    public Button revokeButton;
+    public Button remakeButton;
+    public Text winText;
+    public bool gameStart;
+    public bool gameEnd;
     public enum ChessType
     {
         STwo,//冲二
@@ -46,34 +56,59 @@ public class GameManager : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        InitChessTypesList();
-        //Debug.Log(blackChessTypes.Count);
-        InitEvalTable(DifficultyLevel.Hard);
+        StartGame();
     }
 
     // Update is called once per frame
     void Update()
-    {
-        if (isMyTurn)
+    { 
+        SetButton();
+        if (isMyTurn && !gameEnd && gameStart)
         {
             DisplayBorder();
         }
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0) && isMyTurn && gameStart && !gameEnd)
         {
             GeneratePiece();
         }
-        if (Input.GetKeyDown(KeyCode.Z))
+        if (Input.GetKeyDown(KeyCode.Z) && isMyTurn && gameStart && !gameEnd)
         {
             Revoke();
         }
-        if (Input.GetKeyDown(KeyCode.R))
+        if (gameStart && !gameEnd &&!isMyTurn && !isThinking)
         {
             AI();
+            isMyTurn = true;
         }
+    }
+
+    void StartGame()
+    {
+        isMyTurn = true;
+        TutorialPanel.SetActive(true);
+        winPanel.SetActive(false);
+        gameEnd = false;
+        gameStart = false;
+        InitChessTypesList();
+    }
+
+    void SetButton()
+    {
+        if (isMyTurn && gameStart && !gameEnd && stepList.Count > 0)
+            revokeButton.interactable = true;
+        else 
+            revokeButton.interactable = false;
+
+        if (gameStart)
+            remakeButton.interactable = true;
+        else
+            remakeButton.interactable = false;
     }
 
     void InitChessTypesList()
     {
+        blackChessTypes.Clear();
+        whiteChessTypes.Clear();
         for(int i = 0; i < 7; i++)
         {
             blackChessTypes.Add(new List<string>());
@@ -81,15 +116,36 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void Revoke()
+    public void RevokeBtn()
     {
-        if(stepList.Count > 0)
+        Revoke();Revoke();
+    }
+
+    private void Revoke()
+    {  
+        if(isMyTurn && gameStart && !gameEnd && stepList.Count > 0)
         {
             GameObject t  = GameObject.Find("chess" + (stepList.Count-1).ToString());
             Destroy(t);
             chessBoard[stepList[^1].x, stepList[^1].y] = 0;
             stepList.RemoveAt(stepList.Count - 1);
         }
+    }
+
+    public void Remake()
+    {
+        if (gameStart)
+        {
+            while (stepList.Count > 0)
+            {
+                GameObject t = GameObject.Find("chess" + (stepList.Count - 1).ToString());
+                Destroy(t);
+                chessBoard[stepList[^1].x, stepList[^1].y] = 0;
+                stepList.RemoveAt(stepList.Count - 1);
+            }
+            
+        }
+        StartGame();
     }
 
     //void Test()
@@ -134,7 +190,16 @@ public class GameManager : MonoBehaviour
         {
             //TODO 赢了之后的事情
             Debug.Log("Winner:" + (isBlack ? "Black" : "White"));
+            gameEnd = true;
+            winPanel.SetActive(true);
+            winText.text = (isBlack ? "黑" : "白") + "棋赢";
         }
+        if(isBlack == playerIsBlack)  Invoke(nameof(SwitchTurn), 0.5f);
+    }
+
+    void SwitchTurn()
+    {
+        isMyTurn = false;
     }
 
     Vector3 TransScreenToWorld(Vector3 pos)
@@ -227,13 +292,76 @@ public class GameManager : MonoBehaviour
         Array.Reverse(arr);
         return new string(arr);
     }
-    void InitEvalTable(DifficultyLevel level)
+
+    public void InitLevel(int level)
     {
+        InitEvalTable((DifficultyLevel)level);
+    }
+
+    public void InitEvalTable(DifficultyLevel level)
+    {
+        #region 初始化计分表
+        //冲二
+        blackChessTypes[(int)ChessType.STwo].Add("211000");
+        blackChessTypes[(int)ChessType.STwo].Add("01010");
+        blackChessTypes[(int)ChessType.STwo].Add("210100");
+        blackChessTypes[(int)ChessType.STwo].Add("210010");
+        //冲三
+        blackChessTypes[(int)ChessType.SThree].Add("21110");
+        blackChessTypes[(int)ChessType.SThree].Add("010110");
+        blackChessTypes[(int)ChessType.SThree].Add("0100110");
+        blackChessTypes[(int)ChessType.SThree].Add("201110");
+        blackChessTypes[(int)ChessType.SThree].Add("211100");
+        blackChessTypes[(int)ChessType.SThree].Add("210110");
+        blackChessTypes[(int)ChessType.SThree].Add("2100110");
+        blackChessTypes[(int)ChessType.SThree].Add("2001112");
+        blackChessTypes[(int)ChessType.SThree].Add("2011102");
+        blackChessTypes[(int)ChessType.SThree].Add("2101102");
+        blackChessTypes[(int)ChessType.SThree].Add("2101012");
+        blackChessTypes[(int)ChessType.SThree].Add("0101010");
+        blackChessTypes[(int)ChessType.SThree].Add("2110100");
+        blackChessTypes[(int)ChessType.SThree].Add("2110102");
+
+        //冲四
+        blackChessTypes[(int)ChessType.SFour].Add("211110");
+        blackChessTypes[(int)ChessType.SFour].Add("0111010");
+        blackChessTypes[(int)ChessType.SFour].Add("0110110");
+        blackChessTypes[(int)ChessType.SFour].Add("2111010");
+        blackChessTypes[(int)ChessType.SFour].Add("2101112");
+        blackChessTypes[(int)ChessType.SFour].Add("2110112");
+
+        //活二
+        blackChessTypes[(int)ChessType.Two].Add("01100");
+
+        //活三
+        blackChessTypes[(int)ChessType.Three].Add("0011100");
+
+        //活四
+        blackChessTypes[(int)ChessType.Four].Add("011110");
+
+        //五成
+        blackChessTypes[(int)ChessType.Five].Add("11111");
+        for (int i = 0; i <= 6; i++)
+        {
+            int num = blackChessTypes[i].Count;
+            for (int j = 0; j < num; j++)
+                if (!IsPalindrome(blackChessTypes[i][j]))
+                    blackChessTypes[i].Add(Reverse(blackChessTypes[i][j]));
+        }
+
+
+        for (int i = 0; i <= 6; i++)
+            for (int j = 0; j < blackChessTypes[i].Count; j++)
+                whiteChessTypes[i].Add(blackChessTypes[i][j].
+                    Replace('2', '-').Replace('1', '2').Replace('-', '1'));
+        #endregion
         //根据不同难度初始化价值表
         switch (level)
         {
             case DifficultyLevel.Easy:
                 {
+                    Debug.Log("简单难度");
+                    maxDepth = 0;
                     break;
                 }
             case DifficultyLevel.Middle:
@@ -243,44 +371,7 @@ public class GameManager : MonoBehaviour
             case DifficultyLevel.Hard:
                 {
                     Debug.Log("困难难度");
-                    blackChessTypes[(int)ChessType.STwo].Add("21100");//冲二
-
-                    //冲三
-                    blackChessTypes[(int)ChessType.SThree].Add("21110");
-
-
-                    //冲四
-                    blackChessTypes[(int)ChessType.SFour].Add("211110");
-                    blackChessTypes[(int)ChessType.SFour].Add("0111010");
-                    blackChessTypes[(int)ChessType.SFour].Add("0110110");
-                    blackChessTypes[(int)ChessType.SFour].Add("2111010");
-                    blackChessTypes[(int)ChessType.SFour].Add("2101112");
-                    blackChessTypes[(int)ChessType.SFour].Add("2110112");
-
-                    //活二
-                    blackChessTypes[(int)ChessType.Two].Add("01100");
-
-                    //活三
-                    blackChessTypes[(int)ChessType.Three].Add("0011100");
-
-                    //活四
-                    blackChessTypes[(int)ChessType.Four].Add("011110");
-
-                    //五成
-                    blackChessTypes[(int)ChessType.Five].Add("11111");
-                    for (int i = 0; i <= 6; i++)
-                    {
-                        int num = blackChessTypes[i].Count;
-                        for (int j = 0; j < num; j++)
-                            if (!IsPalindrome(blackChessTypes[i][j]))
-                                blackChessTypes[i].Add(Reverse(blackChessTypes[i][j]));
-                    }
-
-
-                    for (int i = 0; i <= 6; i++)
-                        for (int j = 0; j < blackChessTypes[i].Count; j++)
-                            whiteChessTypes[i].Add(blackChessTypes[i][j].
-                                Replace('2','-').Replace('1','2').Replace('-','1'));
+                    maxDepth = 1;
                     break;
                 }
             case DifficultyLevel.Expert:
@@ -294,6 +385,8 @@ public class GameManager : MonoBehaviour
             default:
                 break;
         }
+        TutorialPanel.SetActive(false);
+        gameStart = true;
     }
 
     /// <summary>
@@ -576,26 +669,25 @@ public class GameManager : MonoBehaviour
             //    (maximizingPlayer ? true : false));
             int v = Evaluate(board, playerIsBlack ? false : true);
             Debug.Log("Leap v = " + v);
-            if(v==0) PrintBoard();
+            //if(v==0) PrintBoard();
             return v;
         }
         if (maximizingPlayer)
         {
-            int v = 0 - int.MaxValue;
+            int v = int.MaxValue;
             bool loopFlag = true;
             //搜刮子节点过程
             for (int i = 0; i < 15 && loopFlag; i++)
             {
                 for (int j = 0; j < 15; j++)
-                    if (board[i, j] == 0)
+                    if (board[i, j] == 0) 
                     {
                         board[i, j] = playerIsBlack ? 1 : 2;
                         stepList.Add(new Point(i, j));
-                        //Debug.Log("i = " + i + " j = " + j + " " + stepList);
-                        v = Mathf.Max(v, AlphaBeta(board, depth - 1, alpha, beta, false));
+                        v = Mathf.Min(v, AlphaBeta(board, depth - 1, alpha, beta, false));
                         board[i, j] = 0;
                         stepList.RemoveAt(stepList.Count - 1);
-                        alpha = Mathf.Max(alpha, v);
+                        beta = Mathf.Min(beta, v);
                         if (beta <= alpha)
                         {
                             loopFlag = false;
@@ -607,7 +699,7 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            int v = int.MaxValue;
+            int v = 0-int.MaxValue;
             bool loopFlag = true;
             for (int i = 0; i < 15 && loopFlag; i++)
                 for (int j = 0; j < 15; j++)
@@ -615,10 +707,10 @@ public class GameManager : MonoBehaviour
                     {
                         board[i, j] = playerIsBlack ? 2 : 1;
                         stepList.Add(new Point(i, j));
-                        v = Mathf.Min(v, AlphaBeta(board, depth - 1, alpha, beta, true));
+                        v = Mathf.Max(v, AlphaBeta(board, depth - 1, alpha, beta, true));
                         board[i, j] = 0;
                         stepList.RemoveAt(stepList.Count - 1);
-                        beta = Mathf.Min(beta, v);
+                        alpha = Mathf.Max(alpha, v);
                         if (beta <= alpha)
                         {
                             loopFlag = false;
@@ -631,6 +723,7 @@ public class GameManager : MonoBehaviour
 
     void AI()
     {
+        isThinking = true;
         int val = 0 - int.MaxValue;
         Point nextStep = new Point(0, 0);
         for (int i = 0; i < 15; i++)
@@ -655,8 +748,8 @@ public class GameManager : MonoBehaviour
             }
         }
         Debug.Log("MAX Value:" + val);
-        //LayPiece(nextStep.x, nextStep.y, !playerIsBlack);
+        LayPiece(nextStep.x, nextStep.y, !playerIsBlack);
         //Debug.Log("Max Score:" + AlphaBeta(chessBoard, maxDepth, 0 - int.MaxValue, int.MaxValue, true));
-
+        isThinking = false;
     }
 }
